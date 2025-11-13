@@ -20,6 +20,10 @@ const matchPattern = (inputLine: string, pattern: string) => Effect.gen(function
     Match.when("\\w", () => {
       return charCodes.some(code => (code >= 0x30 && code <= 0x39) || (code >= 0x41 && code <= 0x5A) || (code >= 0x61 && code <= 0x7A) || code === 0x5F);
     }),
+    Match.when((p) => p.startsWith("[") && p.endsWith("]"), () => {
+      const patternChars = String.split('')(pattern.slice(1, -1));
+      return chars.some(char => patternChars.includes(char));
+    }),
     Match.orElse(() => {
       return false;
     }),
