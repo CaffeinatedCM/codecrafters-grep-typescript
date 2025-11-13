@@ -22,6 +22,12 @@ const matchPattern = (inputLine: string, pattern: string) => Effect.gen(function
     }),
     Match.when((p) => p.startsWith("[") && p.endsWith("]"), () => {
       const patternChars = String.split('')(pattern.slice(1, -1));
+      const isNegated = patternChars[0] === '^';
+
+      if (isNegated) {
+        return chars.some(char => !patternChars.includes(char));
+      }
+
       return chars.some(char => patternChars.includes(char));
     }),
     Match.orElse(() => {
