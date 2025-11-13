@@ -11,9 +11,12 @@ const matchPattern = (inputLine: string, pattern: string) => Effect.gen(function
     Match.when((pattern) => pattern.length === 1, () => {
       return inputLine.includes(pattern);
     }),
+    Match.when("\\d", () => {
+      return /\d/.test(inputLine);
+    }),
     Match.orElse(() => {
       return false;
-    })
+    }),
   )
 })
 
