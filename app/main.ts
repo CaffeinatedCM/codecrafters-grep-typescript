@@ -1,4 +1,4 @@
-import { Effect, Match } from 'effect';
+import { Effect, Match, String, pipe} from 'effect';
 import { Terminal } from '@effect/platform';
 import { BunContext, BunRuntime } from '@effect/platform-bun';
 
@@ -6,13 +6,19 @@ const args = process.argv;
 const pattern = args[3];
 
 const matchPattern = (inputLine: string, pattern: string) => Effect.gen(function* () {
+  const chars = String.split('')(inputLine);
+  const charCodes = chars.map(char => char.charCodeAt(0));
+
   return Match.value(pattern).pipe(
     Match.withReturnType<boolean>(),
     Match.when((pattern) => pattern.length === 1, () => {
-      return inputLine.includes(pattern);
+      return chars.some(char => char === pattern);
     }),
     Match.when("\\d", () => {
-      return /\d/.test(inputLine);
+      return charCodes.some(code => code >= 0x30 && code <= 0x39);
+    }),
+    Match.when("\\w", () => {
+      return charCodes.some(code => (code >= 0x30 && code <= 0x39) || (code >= 0x41 && code <= 0x5A) || (code >= 0x61 && code <= 0x7A) || code === 0x5F);
     }),
     Match.orElse(() => {
       return false;
