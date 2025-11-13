@@ -1,15 +1,17 @@
+import { Effect, Console } from 'effect';
+import { Terminal } from '@effect/platform';
+import { BunContext, BunRuntime } from '@effect/platform-bun';
+
 const args = process.argv;
 const pattern = args[3];
 
-const inputLine: string = await Bun.stdin.text();
-
-function matchPattern(inputLine: string, pattern: string): boolean {
+const matchPattern = (inputLine: string, pattern: string) => Effect.gen(function* () {
   if (pattern.length === 1) {
-    return inputLine.includes(pattern);
+    return yield * Effect.succeed(inputLine.includes(pattern));
   } else {
-    throw new Error(`Unhandled pattern: ${pattern}`);
+    return yield * Effect.die(new Error(`Unhandled pattern: ${pattern}`));
   }
-}
+})
 
 if (args[2] !== "-E") {
   console.log("Expected first argument to be '-E'");
@@ -17,11 +19,16 @@ if (args[2] !== "-E") {
 }
 
 // You can use print statements as follows for debugging, they'll be visible when running tests.
-console.error("Logs from your program will appear here!");
 
-// TODO: Uncomment the code below to pass the first stage
-if (matchPattern(inputLine, pattern)) {
-  process.exit(0);
-} else {
-  process.exit(1);
-}
+const program = Effect.gen(function* () {
+ const terminal = yield* Terminal.Terminal;
+ const inputLine = yield* terminal.readLine;
+ const isMatch = yield* matchPattern(inputLine, pattern);
+ if (isMatch) {
+  return yield * Effect.succeed(0);
+ } else {
+  return yield * Effect.succeed(1);
+ }
+})
+
+BunRuntime.runMain(program.pipe(Effect.provide(BunContext.layer)));

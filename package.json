@@ -6,6 +6,11 @@
     "dev": "bun run app/main.ts"
   },
   "devDependencies": {
+    "@effect/language-service": "^0.55.4",
     "@types/bun": "latest"
+  },
+  "dependencies": {
+    "@effect/platform-bun": "^0.83.0",
+    "effect": "^3.19.3"
   }
 }
