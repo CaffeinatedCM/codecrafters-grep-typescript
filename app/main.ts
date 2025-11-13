@@ -1,4 +1,4 @@
-import { Effect, Console } from 'effect';
+import { Effect, Match } from 'effect';
 import { Terminal } from '@effect/platform';
 import { BunContext, BunRuntime } from '@effect/platform-bun';
 
@@ -6,11 +6,15 @@ const args = process.argv;
 const pattern = args[3];
 
 const matchPattern = (inputLine: string, pattern: string) => Effect.gen(function* () {
-  if (pattern.length === 1) {
-    return yield * Effect.succeed(inputLine.includes(pattern));
-  } else {
-    return yield * Effect.die(new Error(`Unhandled pattern: ${pattern}`));
-  }
+  return Match.value(pattern).pipe(
+    Match.withReturnType<boolean>(),
+    Match.when((pattern) => pattern.length === 1, () => {
+      return inputLine.includes(pattern);
+    }),
+    Match.orElse(() => {
+      return false;
+    })
+  )
 })
 
 if (args[2] !== "-E") {
@@ -27,7 +31,7 @@ const program = Effect.gen(function* () {
  if (isMatch) {
   return yield * Effect.succeed(0);
  } else {
-  return yield * Effect.succeed(1);
+  return yield * Effect.fail(1);
  }
 })
 
