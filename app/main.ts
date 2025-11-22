@@ -88,7 +88,7 @@ const matchFrom = (input: string, index: number, patterns: Pattern[], patternInd
       return false;
     }),
     Match.tag("zero-or-one", () => {
-      const match1 = Effect.runSync(matchFrom(input, index + maxMatches, patterns, patternIndex + 1));
+      const match1 = Effect.runSync(matchFrom(input, index + 1, patterns, patternIndex + 1));
       if (maxMatches >0 && match1) {
         return true;
       }
