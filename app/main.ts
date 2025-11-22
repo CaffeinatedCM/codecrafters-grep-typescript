@@ -7,6 +7,10 @@ const args = process.argv;
 const pattern = args[3];
 
 const matchAtom = (pattern: Pattern, char: string) => Effect.gen(function* () {
+  if (char?.length !== 1) {
+    return false;
+  }
+
   return Match.type<Pattern>().pipe(
     Match.withReturnType<boolean>(),
     Match.tag("literal", (p) => {
@@ -25,6 +29,9 @@ const matchAtom = (pattern: Pattern, char: string) => Effect.gen(function* () {
         return !patternChars.includes(char);
       }
       return patternChars.includes(char);
+    }),
+    Match.tag("wildcard", () => {
+      return char !== "\n";
     }),
     Match.orElse(() => {
       return false;
@@ -121,6 +128,7 @@ type Pattern =
   | { readonly _tag: "digit"; quantifier?: Quantifier }
   | { readonly _tag: "word"; quantifier?: Quantifier }
   | { readonly _tag: "character-class"; readonly value: string; readonly negated: boolean; quantifier?: Quantifier }
+  | { readonly _tag: "wildcard"; quantifier?: Quantifier }
   | { readonly _tag: "end"; quantifier?: Quantifier }
 
 const parsePattern  = (pattern: string) => Effect.gen(function* () {
@@ -133,6 +141,9 @@ const parsePattern  = (pattern: string) => Effect.gen(function* () {
       patternChars.shift();
     } else if (patternChars[0] === "$") {
       patterns.push({ _tag: "end" });
+      patternChars.shift();
+    } else if (patternChars[0] === ".") {
+      patterns.push({ _tag: "wildcard" });
       patternChars.shift();
     } else if (patternChars[0] === "\\") {
       const nextChar = patternChars[1];
