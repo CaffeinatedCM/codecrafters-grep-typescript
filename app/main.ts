@@ -1,40 +1,103 @@
 import { Effect, Match, String, pipe} from 'effect';
 import { Terminal } from '@effect/platform';
 import { BunContext, BunRuntime } from '@effect/platform-bun';
+import { takeWhile } from 'effect/Array';
 
 const args = process.argv;
 const pattern = args[3];
 
-const matchPattern = (inputLine: string, pattern: string) => Effect.gen(function* () {
+const matchPattern = (inputLine: string, pattern: Pattern) => Effect.gen(function* () {
   const chars = String.split('')(inputLine);
   const charCodes = chars.map(char => char.charCodeAt(0));
 
-  return Match.value(pattern).pipe(
-    Match.withReturnType<boolean>(),
-    Match.when((pattern) => pattern.length === 1, () => {
-      return chars.some(char => char === pattern);
+  return Match.type<Pattern>().pipe(
+    Match.withReturnType<number>(),
+    Match.tag("literal", (pattern) => {
+      return chars.findIndex(char => char === pattern.value);
     }),
-    Match.when("\\d", () => {
-      return charCodes.some(code => code >= 0x30 && code <= 0x39);
+    Match.tag("digit", () => {
+      return charCodes.findIndex(code => code >= 0x30 && code <= 0x39);
     }),
-    Match.when("\\w", () => {
-      return charCodes.some(code => (code >= 0x30 && code <= 0x39) || (code >= 0x41 && code <= 0x5A) || (code >= 0x61 && code <= 0x7A) || code === 0x5F);
+    Match.tag("word", () => {
+      return charCodes.findIndex(code => (code >= 0x30 && code <= 0x39) || (code >= 0x41 && code <= 0x5A) || (code >= 0x61 && code <= 0x7A) || code === 0x5F);
     }),
-    Match.when((p) => p.startsWith("[") && p.endsWith("]"), () => {
-      const patternChars = String.split('')(pattern.slice(1, -1));
-      const isNegated = patternChars[0] === '^';
-
+    Match.tag("character-class", (pattern) => {
+      const patternChars = String.split('')(pattern.value);
+      const isNegated = pattern.negated;
       if (isNegated) {
-        return chars.some(char => !patternChars.includes(char));
+        return chars.findIndex(char => !patternChars.includes(char));
       }
 
-      return chars.some(char => patternChars.includes(char));
+      return chars.findIndex(char => patternChars.includes(char));
     }),
     Match.orElse(() => {
-      return false;
+      return -1;
     }),
-  )
+  )(pattern);
 })
+
+const matchPatterns = (inputLine: string, patterns: Pattern[]) => Effect.gen(function* () {
+  let curString = inputLine;
+  let patternIndex = 0;
+  while (patternIndex < patterns.length) {
+    const pattern = patterns[patternIndex];
+    const matchIndex = yield* matchPattern(curString, pattern);
+    if (matchIndex === -1) {
+      return yield * Effect.succeed(false);
+    }
+    curString = curString.slice(matchIndex + 1);
+    patternIndex++;
+  }
+  if (patternIndex !== patterns.length) {
+    return yield * Effect.succeed(false);
+  }
+  return yield * Effect.succeed(true);
+});
+
+type Pattern = 
+  | { readonly _tag: "literal"; readonly value: string }
+  | { readonly _tag: "digit" }
+  | { readonly _tag: "word" }
+  | { readonly _tag: "character-class"; readonly value: string; readonly negated: boolean }
+
+
+const parsePattern  = (pattern: string) => Effect.gen(function* () {
+  const patternChars = String.split('')(pattern);
+  const patterns: Pattern[] = [];
+
+  while (patternChars.length > 0) {
+    if (patternChars[0] === "\\") {
+      const nextChar = patternChars[1];
+      if (nextChar === "d" ) {
+        patterns.push({ _tag: "digit" });
+        patternChars.shift();
+        patternChars.shift();
+      } else if (nextChar === "w" ) {
+        patterns.push({ _tag: "word" });
+        patternChars.shift();
+        patternChars.shift();
+      } else {
+        patterns.push({ _tag: "literal", value: patternChars[0] });
+        patternChars.shift();
+      } 
+    } else if (patternChars[0] === "[") {
+      const characterClass = takeWhile(patternChars, (char) => char !== "]");
+      characterClass.shift();
+      let isNegated = false;
+      if (characterClass[0] === "^") {
+        isNegated = true;
+        characterClass.shift();
+      }
+      patterns.push({ _tag: "character-class", value: characterClass.join(""), negated: isNegated });
+      patternChars.splice(0, characterClass.length + 2 + (isNegated ? 1 : 0));
+    } else {
+      // Assume anything else is a literal
+      patterns.push({ _tag: "literal", value: patternChars[0] });
+      patternChars.shift();
+    }
+  }
+  return yield * Effect.succeed(patterns);
+});
 
 if (args[2] !== "-E") {
   console.log("Expected first argument to be '-E'");
@@ -46,7 +109,8 @@ if (args[2] !== "-E") {
 const program = Effect.gen(function* () {
  const terminal = yield* Terminal.Terminal;
  const inputLine = yield* terminal.readLine;
- const isMatch = yield* matchPattern(inputLine, pattern);
+ const patterns = yield* parsePattern(pattern);
+ const isMatch = yield* matchPatterns(inputLine, patterns);
  if (isMatch) {
   return yield * Effect.succeed(0);
  } else {
