@@ -39,10 +39,19 @@ const matchPattern = (inputLine: string, pattern: Pattern) => Effect.gen(functio
 const matchPatterns = (inputLine: string, patterns: Pattern[]) => Effect.gen(function* () {
   let curString = inputLine;
   let patternIndex = 0;
+  let isStart = false;
+  if (patterns[0]._tag === "start") {
+    isStart = true;
+    patternIndex++;
+  }
+
   while (patternIndex < patterns.length) {
     const pattern = patterns[patternIndex];
     const matchIndex = yield* matchPattern(curString, pattern);
     if (matchIndex === -1) {
+      return yield * Effect.succeed(false);
+    }
+    if (isStart && matchIndex !== 0) {
       return yield * Effect.succeed(false);
     }
     curString = curString.slice(matchIndex + 1);
@@ -55,15 +64,20 @@ const matchPatterns = (inputLine: string, patterns: Pattern[]) => Effect.gen(fun
 });
 
 type Pattern = 
+  | { readonly _tag: "start" }
   | { readonly _tag: "literal"; readonly value: string }
   | { readonly _tag: "digit" }
   | { readonly _tag: "word" }
   | { readonly _tag: "character-class"; readonly value: string; readonly negated: boolean }
 
-
 const parsePattern  = (pattern: string) => Effect.gen(function* () {
   const patternChars = String.split('')(pattern);
   const patterns: Pattern[] = [];
+
+  if (patternChars[0] === "^") {
+    patterns.push({ _tag: "start" });
+    patternChars.shift();
+  }
 
   while (patternChars.length > 0) {
     if (patternChars[0] === "\\") {
@@ -112,8 +126,10 @@ const program = Effect.gen(function* () {
  const patterns = yield* parsePattern(pattern);
  const isMatch = yield* matchPatterns(inputLine, patterns);
  if (isMatch) {
+  yield * terminal.display("match\n");
   return yield * Effect.succeed(0);
  } else {
+  yield * terminal.display("no match\n");
   return yield * Effect.fail(1);
  }
 })
