@@ -7,7 +7,8 @@
   },
   "devDependencies": {
     "@effect/language-service": "^0.55.4",
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "prettier": "^3.6.2"
   },
   "dependencies": {
     "@effect/platform-bun": "^0.83.0",

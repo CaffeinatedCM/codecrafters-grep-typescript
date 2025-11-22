@@ -61,6 +61,20 @@ const matchFrom = (input: string, index: number, patterns: Pattern[], patternInd
 
   const quantifier = pattern.quantifier;
 
+  if (pattern._tag === "alternation") {
+    if (!quantifier) {
+      for (const alternate of pattern.patterns) {
+        const match = yield* matchFrom(input, index, alternate, 0);
+        if (match) {
+          return yield* matchFrom(input, index + alternate.length, patterns, patternIndex + 1);
+        }
+      }
+      return false;
+    }
+
+    throw new Error("Alternation with quantifier not supported");
+  }
+
   if (!quantifier) {
     if (index >= input.length) {
       return false;
@@ -129,6 +143,7 @@ type Pattern =
   | { readonly _tag: "word"; quantifier?: Quantifier }
   | { readonly _tag: "character-class"; readonly value: string; readonly negated: boolean; quantifier?: Quantifier }
   | { readonly _tag: "wildcard"; quantifier?: Quantifier }
+  | { readonly _tag :"alternation"; readonly patterns: Pattern[][], quantifier?: Quantifier }
   | { readonly _tag: "end"; quantifier?: Quantifier }
 
 const parsePattern  = (pattern: string) => Effect.gen(function* () {
@@ -169,6 +184,11 @@ const parsePattern  = (pattern: string) => Effect.gen(function* () {
       }
       patterns.push({ _tag: "character-class", value: characterClass.join(""), negated: isNegated });
       patternChars.splice(0, characterClass.length + 2 + (isNegated ? 1 : 0));
+    } else if (patternChars[0] === "(") {
+      const alternatesRaw = takeWhile(patternChars.slice(1), (char) => char !== ")").join("");
+      const alternates = alternatesRaw.split("|").map(alternate => Effect.runSync(parsePattern(alternate)));
+      patterns.push({ _tag: "alternation", patterns: alternates });
+      patternChars.splice(0, alternatesRaw.length + 2);
     } else if (patternChars[0] === "?") {
       patterns[patterns.length - 1].quantifier = { _tag: "zero-or-one" };
       patternChars.shift();
