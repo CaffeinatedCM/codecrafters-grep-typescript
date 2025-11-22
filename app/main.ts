@@ -6,87 +6,109 @@ import { takeWhile } from 'effect/Array';
 const args = process.argv;
 const pattern = args[3];
 
-const matchPattern = (inputLine: string, pattern: Pattern) => Effect.gen(function* () {
-  const chars = String.split('')(inputLine);
-  const charCodes = chars.map(char => char.charCodeAt(0));
-
+const matchAtom = (pattern: Pattern, char: string) => Effect.gen(function* () {
   return Match.type<Pattern>().pipe(
-    Match.withReturnType<number>(),
-    Match.tag("literal", (pattern) => {
-      return chars.findIndex(char => char === pattern.value);
+    Match.withReturnType<boolean>(),
+    Match.tag("literal", (p) => {
+      return char === p.value;
     }),
     Match.tag("digit", () => {
-      return charCodes.findIndex(code => code >= 0x30 && code <= 0x39);
+      return char >= "0" && char <= "9";
     }),
     Match.tag("word", () => {
-      return charCodes.findIndex(code => (code >= 0x30 && code <= 0x39) || (code >= 0x41 && code <= 0x5A) || (code >= 0x61 && code <= 0x7A) || code === 0x5F);
+      return char >= "0" && char <= "9" || (char >= "A" && char <= "Z") || (char >= "a" && char <= "z") || char === "_";
     }),
-    Match.tag("character-class", (pattern) => {
-      const patternChars = String.split('')(pattern.value);
-      const isNegated = pattern.negated;
+    Match.tag("character-class", (p) => {
+      const patternChars = String.split('')(p.value);
+      const isNegated = p.negated;
       if (isNegated) {
-        return chars.findIndex(char => !patternChars.includes(char));
+        return !patternChars.includes(char);
       }
-
-      return chars.findIndex(char => patternChars.includes(char));
-    }),
-    Match.tag("end", () => {
-      return inputLine.length === 0 ? 0 : -1;
+      return patternChars.includes(char);
     }),
     Match.orElse(() => {
-      return -1;
+      return false;
     }),
   )(pattern);
+});
+
+const matchFrom = (input: string, index: number, patterns: Pattern[], patternIndex: number): Effect.Effect<boolean, Error> => Effect.gen(function* () {
+  if (patternIndex >= patterns.length) {
+    return true;
+  }
+
+  const pattern = patterns[patternIndex];
+
+  if (pattern._tag === "start") {
+    if (index !== 0) {
+      return false;
+    }
+    return yield* matchFrom(input, index, patterns, patternIndex + 1);
+  }
+  if (pattern._tag === "end") {
+    if (index !== input.length) {
+      return false;
+    }
+    return yield* matchFrom(input, index, patterns, patternIndex + 1);
+  }
+
+  const quantifier = pattern.quantifier;
+
+  if (!quantifier) {
+    if (index >= input.length) {
+      return false;
+    }
+    const isMatch = yield* matchAtom(pattern, input[index]);
+    if (!isMatch) {
+      return false;
+    }
+    return yield* matchFrom(input, index + 1, patterns, patternIndex + 1);
+  }
+
+  let maxMatches = 0;
+  let isMatch = yield* matchAtom(pattern, input[index]);
+  while (index + maxMatches < input.length && isMatch) {
+    maxMatches++;
+    isMatch = yield* matchAtom(pattern, input[index + maxMatches]);
+  }
+
+  return Match.type<Quantifier>().pipe(
+    Match.withReturnType<boolean>(),
+    Match.tag("one-or-more", () => {
+      if (maxMatches === 0) {
+        return false;
+      }
+
+      for (let i = maxMatches; i >= 0; i--) {
+        const match = Effect.runSync(matchFrom(input, index + i, patterns, patternIndex + 1));
+        if (match) {
+          return true;
+        }
+      }
+      return false;
+    }),
+    Match.tag("zero-or-one", () => {
+      const match1 = Effect.runSync(matchFrom(input, index + maxMatches, patterns, patternIndex + 1));
+      if (maxMatches >0 && match1) {
+        return true;
+      }
+      return Effect.runSync(matchFrom(input, index, patterns, patternIndex + 1));
+    }),
+    Match.tag("zero-or-more", () => {
+      for (let i = maxMatches; i >= 0; i--) {
+        const match = Effect.runSync(matchFrom(input, index + i, patterns, patternIndex + 1));
+        if (match) {
+          return true;
+        }
+      }
+      return false;
+    }),
+    Match.orElse(() => {
+      throw new Error("Invalid quantifier");
+    }),
+  )(quantifier);
 })
 
-const matchPatterns = (inputLine: string, patterns: Pattern[]) => Effect.gen(function* () {
-  let curString = inputLine;
-  let patternIndex = 0;
-  let isStart = false;
-
-  if (patterns[0]._tag === "start") {
-    isStart = true;
-    patternIndex++;
-  }
-
-  let matchCount = 0;
-  while (patternIndex < patterns.length) {
-    const pattern = patterns[patternIndex];
-
-    const matchIndex = yield* matchPattern(curString, pattern);
-
-    if (matchIndex === -1) {
-      if (pattern.quantifier?._tag === "zero-or-one" || pattern.quantifier?._tag === "zero-or-more") {
-        patternIndex++;
-        continue;
-      }
-      if (pattern.quantifier?._tag === "one-or-more" && matchCount > 0) {
-        patternIndex++;
-        continue;
-      }
-      return yield * Effect.succeed(false);
-    }
-
-    if (isStart && matchIndex !== 0) {
-      return yield * Effect.succeed(false);
-    }
-
-    curString = curString.slice(matchIndex + 1);
-    matchCount++;
-
-    if (pattern.quantifier?._tag === "one-or-more") {
-      continue;
-    }
-
-    patternIndex++;
-    matchCount = 0;
-  }
-
-  if (patternIndex !== patterns.length) {
-    return yield * Effect.succeed(false);
-  }
-  return yield * Effect.succeed(true);
-});
 
 type Quantifier =
   | { readonly _tag: "one-or-more" }
@@ -165,14 +187,16 @@ const program = Effect.gen(function* () {
  const inputLine = yield* terminal.readLine;
  const patterns = yield* parsePattern(pattern);
 //  yield * terminal.display(JSON.stringify(patterns, null, 2) + "\n");
- const isMatch = yield* matchPatterns(inputLine, patterns);
- if (isMatch) {
-  yield * terminal.display("match\n");
-  return yield * Effect.succeed(0);
- } else {
+  for (let i = 0; i < inputLine.length; i++) {
+    const isMatch = yield* matchFrom(inputLine, i, patterns, 0);
+    if (isMatch) {
+      yield * terminal.display("match\n");
+      return yield * Effect.succeed(0);
+    }
+  }
+
   yield * terminal.display("no match\n");
   return yield * Effect.fail(1);
- }
 })
 
 BunRuntime.runMain(program.pipe(Effect.provide(BunContext.layer)));
