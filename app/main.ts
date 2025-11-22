@@ -30,6 +30,9 @@ const matchPattern = (inputLine: string, pattern: Pattern) => Effect.gen(functio
 
       return chars.findIndex(char => patternChars.includes(char));
     }),
+    Match.tag("end", () => {
+      return inputLine.length === 0 ? 0 : -1;
+    }),
     Match.orElse(() => {
       return -1;
     }),
@@ -40,6 +43,7 @@ const matchPatterns = (inputLine: string, patterns: Pattern[]) => Effect.gen(fun
   let curString = inputLine;
   let patternIndex = 0;
   let isStart = false;
+
   if (patterns[0]._tag === "start") {
     isStart = true;
     patternIndex++;
@@ -69,18 +73,20 @@ type Pattern =
   | { readonly _tag: "digit" }
   | { readonly _tag: "word" }
   | { readonly _tag: "character-class"; readonly value: string; readonly negated: boolean }
+  | { readonly _tag: "end" }
 
 const parsePattern  = (pattern: string) => Effect.gen(function* () {
   const patternChars = String.split('')(pattern);
   const patterns: Pattern[] = [];
 
-  if (patternChars[0] === "^") {
-    patterns.push({ _tag: "start" });
-    patternChars.shift();
-  }
-
   while (patternChars.length > 0) {
-    if (patternChars[0] === "\\") {
+    if (patternChars[0] === "^") {
+      patterns.push({ _tag: "start" });
+      patternChars.shift();
+    } else if (patternChars[0] === "$") {
+      patterns.push({ _tag: "end" });
+      patternChars.shift();
+    } else if (patternChars[0] === "\\") {
       const nextChar = patternChars[1];
       if (nextChar === "d" ) {
         patterns.push({ _tag: "digit" });
