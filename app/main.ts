@@ -49,31 +49,57 @@ const matchPatterns = (inputLine: string, patterns: Pattern[]) => Effect.gen(fun
     patternIndex++;
   }
 
+  let matchCount = 0;
   while (patternIndex < patterns.length) {
     const pattern = patterns[patternIndex];
+
     const matchIndex = yield* matchPattern(curString, pattern);
+
     if (matchIndex === -1) {
+      if (pattern.quantifier?._tag === "zero-or-one" || pattern.quantifier?._tag === "zero-or-more") {
+        patternIndex++;
+        continue;
+      }
+      if (pattern.quantifier?._tag === "one-or-more" && matchCount > 0) {
+        patternIndex++;
+        continue;
+      }
       return yield * Effect.succeed(false);
     }
+
     if (isStart && matchIndex !== 0) {
       return yield * Effect.succeed(false);
     }
+
     curString = curString.slice(matchIndex + 1);
+    matchCount++;
+
+    if (pattern.quantifier?._tag === "one-or-more") {
+      continue;
+    }
+
     patternIndex++;
+    matchCount = 0;
   }
+
   if (patternIndex !== patterns.length) {
     return yield * Effect.succeed(false);
   }
   return yield * Effect.succeed(true);
 });
 
+type Quantifier =
+  | { readonly _tag: "one-or-more" }
+  | { readonly _tag: "zero-or-one" }
+  | { readonly _tag: "zero-or-more" }
+
 type Pattern = 
-  | { readonly _tag: "start" }
-  | { readonly _tag: "literal"; readonly value: string }
-  | { readonly _tag: "digit" }
-  | { readonly _tag: "word" }
-  | { readonly _tag: "character-class"; readonly value: string; readonly negated: boolean }
-  | { readonly _tag: "end" }
+  | { readonly _tag: "start"; quantifier?: Quantifier }
+  | { readonly _tag: "literal"; readonly value: string; quantifier?: Quantifier }
+  | { readonly _tag: "digit"; quantifier?: Quantifier }
+  | { readonly _tag: "word"; quantifier?: Quantifier }
+  | { readonly _tag: "character-class"; readonly value: string; readonly negated: boolean; quantifier?: Quantifier }
+  | { readonly _tag: "end"; quantifier?: Quantifier }
 
 const parsePattern  = (pattern: string) => Effect.gen(function* () {
   const patternChars = String.split('')(pattern);
@@ -110,6 +136,15 @@ const parsePattern  = (pattern: string) => Effect.gen(function* () {
       }
       patterns.push({ _tag: "character-class", value: characterClass.join(""), negated: isNegated });
       patternChars.splice(0, characterClass.length + 2 + (isNegated ? 1 : 0));
+    } else if (patternChars[0] === "?") {
+      patterns[patterns.length - 1].quantifier = { _tag: "zero-or-one" };
+      patternChars.shift();
+    } else if (patternChars[0] === "*") {
+      patterns[patterns.length - 1].quantifier = { _tag: "zero-or-more" };
+      patternChars.shift();
+    } else if (patternChars[0] === "+") {
+      patterns[patterns.length - 1].quantifier = { _tag: "one-or-more" };
+      patternChars.shift();
     } else {
       // Assume anything else is a literal
       patterns.push({ _tag: "literal", value: patternChars[0] });
@@ -119,17 +154,17 @@ const parsePattern  = (pattern: string) => Effect.gen(function* () {
   return yield * Effect.succeed(patterns);
 });
 
-if (args[2] !== "-E") {
-  console.log("Expected first argument to be '-E'");
-  process.exit(1);
-}
-
-// You can use print statements as follows for debugging, they'll be visible when running tests.
-
 const program = Effect.gen(function* () {
  const terminal = yield* Terminal.Terminal;
+
+ if (args[2] !== "-E") {
+  yield * terminal.display("Expected first argument to be '-E'\n");
+  return yield * Effect.fail(1);
+ }
+
  const inputLine = yield* terminal.readLine;
  const patterns = yield* parsePattern(pattern);
+//  yield * terminal.display(JSON.stringify(patterns, null, 2) + "\n");
  const isMatch = yield* matchPatterns(inputLine, patterns);
  if (isMatch) {
   yield * terminal.display("match\n");
