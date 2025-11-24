@@ -131,6 +131,14 @@ export const matchFrom = (input: string, index: number, patterns: Pattern[], pat
       }
       return null;
     }),
+    Match.tag("n-times", (q) => {
+      if (matchEnds.length < q.n) {
+        return null;
+      }
+
+      // Start at the end of the n-th match
+      return Effect.runSync(matchFrom(input, matchEnds[q.n - 1], patterns, patternIndex + 1));
+    }),
     Match.orElse(() => {
       throw new Error("Invalid quantifier");
     }),
