@@ -57,9 +57,22 @@ export const parsePattern  = (pattern: string) => Effect.gen(function* () {
       patternChars.shift();
     } else if (patternChars[0] === "{") {
       patternChars.shift();
-      const n = takeWhile(patternChars, (char) => char !== "}").join("");
-      patterns[patterns.length - 1].quantifier = { _tag: "n-times", n: parseInt(n) };
-      patternChars.splice(0, n.length + 1);
+      const innerContent = takeWhile(patternChars, (char) => char !== "}").join("");
+      const commaIndex = innerContent.indexOf(",");
+      if (commaIndex === -1) {
+        patterns[patterns.length - 1].quantifier = { _tag: "n-times", n: parseInt(innerContent) };
+      } else {
+      const n = parseInt(innerContent.substring(0, commaIndex));
+      const m = parseInt(innerContent.substring(commaIndex + 1));
+
+      if (!isNaN(m)) {
+        patterns[patterns.length - 1].quantifier = { _tag: "between-n-and-m-times", n, m };
+      } else {
+        patterns[patterns.length - 1].quantifier = { _tag: "at-least-n-times", n };
+      }
+     }
+
+      patternChars.splice(0, innerContent.length + 1);
     } else {
       // Assume anything else is a literal
       patterns.push({ _tag: "literal", value: patternChars[0] });

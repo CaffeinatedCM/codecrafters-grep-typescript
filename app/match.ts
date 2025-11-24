@@ -139,6 +139,34 @@ export const matchFrom = (input: string, index: number, patterns: Pattern[], pat
       // Start at the end of the n-th match
       return Effect.runSync(matchFrom(input, matchEnds[q.n - 1], patterns, patternIndex + 1));
     }),
+    Match.tag("at-least-n-times", (q) => {
+      if (matchEnds.length < q.n) {
+        return null;
+      }
+
+      for (let i = matchEnds.length - 1; i >= q.n - 1; i--) {
+        const match = Effect.runSync(matchFrom(input, matchEnds[i], patterns, patternIndex + 1));
+        if (match !== null) {
+          return match;
+        }
+      }
+      return null;
+    }),
+    Match.tag("between-n-and-m-times", (q) => {
+      if (matchEnds.length < q.n) {
+        return null;
+      }
+
+      // start at the end of the m-th match and go until the end of the n-th match
+      let startIdx = matchEnds.length < q.m ? matchEnds.length - 1 : q.m - 1;
+      for (let i = startIdx; i >= q.n - 1; i--) {
+        const match = Effect.runSync(matchFrom(input, matchEnds[i], patterns, patternIndex + 1));
+        if (match !== null) {
+          return match;
+        }
+      }
+      return null;
+    }),
     Match.orElse(() => {
       throw new Error("Invalid quantifier");
     }),

@@ -3,6 +3,8 @@ export type Quantifier =
   | { readonly _tag: "zero-or-one" }
   | { readonly _tag: "zero-or-more" }
   | { readonly _tag: "n-times"; readonly n: number }
+  | { readonly _tag: "at-least-n-times"; readonly n: number }
+  | { readonly _tag: "between-n-and-m-times"; readonly n: number; readonly m: number }
 
 export type Pattern = 
   | { readonly _tag: "start"; quantifier?: Quantifier }
