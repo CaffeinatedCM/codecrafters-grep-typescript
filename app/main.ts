@@ -124,6 +124,11 @@ const matchFrom = (input: string, index: number, patterns: Pattern[], patternInd
       return Effect.runSync(matchFrom(input, index, patterns, patternIndex + 1));
     }),
     Match.tag("zero-or-more", () => {
+      console.log("matchEnds", matchEnds);
+      if (matchEnds.length === 0) {
+        return Effect.runSync(matchFrom(input, index, patterns, patternIndex + 1));
+      }
+
       for (let i = matchEnds.length - 1; i >= 0; i--) {
         const match = Effect.runSync(matchFrom(input, matchEnds[i], patterns, patternIndex + 1));
         if (match) {
