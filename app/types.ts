@@ -2,6 +2,7 @@ export type Quantifier =
   | { readonly _tag: "one-or-more" }
   | { readonly _tag: "zero-or-one" }
   | { readonly _tag: "zero-or-more" }
+  | { readonly _tag: "n-times"; readonly n: number }
 
 export type Pattern = 
   | { readonly _tag: "start"; quantifier?: Quantifier }
