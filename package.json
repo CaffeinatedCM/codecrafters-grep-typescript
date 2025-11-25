@@ -3,7 +3,7 @@
   "description": "Build your own grep challenge, from CodeCrafters",
   "type": "module",
   "scripts": {
-    "dev": "bun run app/main.ts"
+    "dev": "bun run app/index.ts"
   },
   "devDependencies": {
     "@effect/language-service": "^0.55.4",

@@ -1,19 +1,16 @@
 import { Effect } from 'effect';
 import { Terminal } from '@effect/platform';
-import { BunContext, BunRuntime } from '@effect/platform-bun';
 import { parsePattern } from './parse';
 import { matchFrom } from './match';
 
-const args = process.argv;
-const pattern = args[3];
-
-const program = Effect.gen(function* () {
+const program = (args: string[]) => Effect.gen(function* () {
  const terminal = yield* Terminal.Terminal;
 
  if (args[2] !== "-E") {
   yield * terminal.display("Expected first argument to be '-E'\n");
   return yield * Effect.fail(1);
  }
+ const pattern = args[3];
 
  const inputLine = yield* terminal.readLine;
  const patterns = yield* parsePattern(pattern);
@@ -30,4 +27,4 @@ const program = Effect.gen(function* () {
   return yield * Effect.fail(1);
 })
 
-BunRuntime.runMain(program.pipe(Effect.provide(BunContext.layer)));
+export { program }

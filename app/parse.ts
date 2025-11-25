@@ -1,8 +1,16 @@
 import { Effect, String } from "effect";
 import { takeWhile } from "effect/Array";
-import type { Pattern } from "./types";
+import type { Pattern, Quantifier } from "./types";
 
-export const parsePattern  = (pattern: string) => Effect.gen(function* () {
+const applyQuantifier = (pattern: Pattern, quantifier: Quantifier) => Effect.gen(function* () {
+    if (pattern._tag === "start" || pattern._tag === "end") {
+        return yield * Effect.die("The preceding pattern is not quantifiable");
+    }
+    pattern.quantifier = quantifier;
+    return yield * Effect.succeed(pattern);
+});
+
+const parseOld = (pattern: string) => Effect.gen(function* () {
   const patternChars = String.split('')(pattern);
   const patterns: Pattern[] = [];
 
@@ -47,28 +55,28 @@ export const parsePattern  = (pattern: string) => Effect.gen(function* () {
       patterns.push({ _tag: "alternation", patterns: alternates });
       patternChars.splice(0, alternatesRaw.length + 1);
     } else if (patternChars[0] === "?") {
-      patterns[patterns.length - 1].quantifier = { _tag: "zero-or-one" };
+      yield * applyQuantifier(patterns[patterns.length - 1], { _tag: "zero-or-one" });
       patternChars.shift();
     } else if (patternChars[0] === "*") {
-      patterns[patterns.length - 1].quantifier = { _tag: "zero-or-more" };
+      yield * applyQuantifier(patterns[patterns.length - 1], { _tag: "zero-or-more" });
       patternChars.shift();
     } else if (patternChars[0] === "+") {
-      patterns[patterns.length - 1].quantifier = { _tag: "one-or-more" };
+      yield * applyQuantifier(patterns[patterns.length - 1], { _tag: "one-or-more" });
       patternChars.shift();
     } else if (patternChars[0] === "{") {
       patternChars.shift();
       const innerContent = takeWhile(patternChars, (char) => char !== "}").join("");
       const commaIndex = innerContent.indexOf(",");
       if (commaIndex === -1) {
-        patterns[patterns.length - 1].quantifier = { _tag: "n-times", n: parseInt(innerContent) };
+        yield * applyQuantifier(patterns[patterns.length - 1], { _tag: "n-times", n: parseInt(innerContent) });
       } else {
       const n = parseInt(innerContent.substring(0, commaIndex));
       const m = parseInt(innerContent.substring(commaIndex + 1));
 
       if (!isNaN(m)) {
-        patterns[patterns.length - 1].quantifier = { _tag: "between-n-and-m-times", n, m };
+        yield * applyQuantifier(patterns[patterns.length - 1], { _tag: "between-n-and-m-times", n, m });
       } else {
-        patterns[patterns.length - 1].quantifier = { _tag: "at-least-n-times", n };
+        yield * applyQuantifier(patterns[patterns.length - 1], { _tag: "at-least-n-times", n });
       }
      }
 
@@ -80,4 +88,10 @@ export const parsePattern  = (pattern: string) => Effect.gen(function* () {
     }
   }
   return yield * Effect.succeed(patterns);
+});
+
+
+
+export const parsePattern  = (pattern: string) => Effect.gen(function* () {
+    return yield * parseOld(pattern);
 });

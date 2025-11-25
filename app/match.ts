@@ -6,30 +6,30 @@ export const matchAtom = (pattern: Pattern, char: string) => Effect.gen(function
     return false;
   }
 
-  return Match.type<Pattern>().pipe(
-    Match.withReturnType<boolean>(),
+  return yield* Match.type<Pattern>().pipe(
+    Match.withReturnType<Effect.Effect<boolean, never, never>>(),
     Match.tag("literal", (p) => {
-      return char === p.value;
+      return Effect.succeed(char === p.value);
     }),
     Match.tag("digit", () => {
-      return char >= "0" && char <= "9";
+      return Effect.succeed(char >= "0" && char <= "9");
     }),
     Match.tag("word", () => {
-      return char >= "0" && char <= "9" || (char >= "A" && char <= "Z") || (char >= "a" && char <= "z") || char === "_";
+      return Effect.succeed(char >= "0" && char <= "9" || (char >= "A" && char <= "Z") || (char >= "a" && char <= "z") || char === "_");
     }),
     Match.tag("character-class", (p) => {
       const patternChars = String.split('')(p.value);
       const isNegated = p.negated;
       if (isNegated) {
-        return !patternChars.includes(char);
+        return Effect.succeed(!patternChars.includes(char));
       }
-      return patternChars.includes(char);
+      return Effect.succeed(patternChars.includes(char));
     }),
     Match.tag("wildcard", () => {
-      return char !== "\n";
+      return Effect.succeed(char !== "\n");
     }),
     Match.orElse(() => {
-      return false;
+      return Effect.succeed(false);
     }),
   )(pattern);
 });
@@ -101,9 +101,7 @@ export const matchFrom = (input: string, index: number, patterns: Pattern[], pat
       }
 
       for (let i = matchEnds.length - 1; i >= 0; i--) {
-        console.log(matchEnds[i] + 1, patternIndex + 1);
         const match = Effect.runSync(matchFrom(input, matchEnds[i], patterns, patternIndex + 1));
-        console.log("match", match);
         if (match !== null) {
           return match;
         }
@@ -118,7 +116,6 @@ export const matchFrom = (input: string, index: number, patterns: Pattern[], pat
       return Effect.runSync(matchFrom(input, index, patterns, patternIndex + 1));
     }),
     Match.tag("zero-or-more", () => {
-      console.log("matchEnds", matchEnds);
       if (matchEnds.length === 0) {
         return Effect.runSync(matchFrom(input, index, patterns, patternIndex + 1));
       }
