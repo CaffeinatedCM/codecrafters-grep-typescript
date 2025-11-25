@@ -18,12 +18,12 @@ const program = (args: string[]) => Effect.gen(function* () {
   for (let i = 0; i < inputLine.length; i++) {
     const isMatch = yield* matchFrom(inputLine, i, patterns, 0);
     if (isMatch !== null) {
-      yield * terminal.display(`match (${isMatch})\n`);
+      yield * terminal.display(`${inputLine}\n`)
       return yield * Effect.succeed(0);
     }
   }
 
-  yield * terminal.display("no match\n");
+  // yield * terminal.display("no match\n");
   return yield * Effect.fail(1);
 })
 

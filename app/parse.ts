@@ -90,8 +90,6 @@ const parseOld = (pattern: string) => Effect.gen(function* () {
   return yield * Effect.succeed(patterns);
 });
 
-
-
 export const parsePattern  = (pattern: string) => Effect.gen(function* () {
     return yield * parseOld(pattern);
 });
