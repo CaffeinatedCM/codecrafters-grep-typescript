@@ -93,65 +93,65 @@ export const matchFrom = (input: string, index: number, patterns: Pattern[], pat
     match = yield* matchOneInstance(input, match, pattern);
   }
 
-  return Match.type<Quantifier>().pipe(
-    Match.withReturnType<number | null>(),
+  return yield* (Match.type<Quantifier>().pipe(
+    Match.withReturnType<Effect.Effect<number | null, Error,never>>(),
     Match.tag("one-or-more", () => {
       if (matchEnds.length === 0) {
-        return null;
+        return Effect.succeed(null);
       }
 
       for (let i = matchEnds.length - 1; i >= 0; i--) {
         const match = Effect.runSync(matchFrom(input, matchEnds[i], patterns, patternIndex + 1));
         if (match !== null) {
-          return match;
+          return Effect.succeed(match);
         }
       }
-      return null;
+      return Effect.succeed(null);
     }),
     Match.tag("zero-or-one", () => {
       const match1 = Effect.runSync(matchFrom(input, index + 1, patterns, patternIndex + 1));
       if (matchEnds.length >0 && match1) {
-        return index + 1;
+        return Effect.succeed(index + 1);
       }
-      return Effect.runSync(matchFrom(input, index, patterns, patternIndex + 1));
+      return matchFrom(input, index, patterns, patternIndex + 1);
     }),
     Match.tag("zero-or-more", () => {
       if (matchEnds.length === 0) {
-        return Effect.runSync(matchFrom(input, index, patterns, patternIndex + 1));
+        return matchFrom(input, index, patterns, patternIndex + 1);
       }
 
       for (let i = matchEnds.length - 1; i >= 0; i--) {
         const match = Effect.runSync(matchFrom(input, matchEnds[i], patterns, patternIndex + 1));
         if (match) {
-          return match;
+          return Effect.succeed(match);
         }
       }
-      return null;
+      return Effect.succeed(null);
     }),
     Match.tag("n-times", (q) => {
       if (matchEnds.length < q.n) {
-        return null;
+        return Effect.succeed(null);
       }
 
       // Start at the end of the n-th match
-      return Effect.runSync(matchFrom(input, matchEnds[q.n - 1], patterns, patternIndex + 1));
+      return matchFrom(input, matchEnds[q.n - 1], patterns, patternIndex + 1);
     }),
     Match.tag("at-least-n-times", (q) => {
       if (matchEnds.length < q.n) {
-        return null;
+        return Effect.succeed(null);
       }
 
       for (let i = matchEnds.length - 1; i >= q.n - 1; i--) {
         const match = Effect.runSync(matchFrom(input, matchEnds[i], patterns, patternIndex + 1));
         if (match !== null) {
-          return match;
+          return Effect.succeed(match);
         }
       }
-      return null;
+      return Effect.succeed(null);
     }),
     Match.tag("between-n-and-m-times", (q) => {
       if (matchEnds.length < q.n) {
-        return null;
+        return Effect.succeed(null);
       }
 
       // start at the end of the m-th match and go until the end of the n-th match
@@ -159,13 +159,13 @@ export const matchFrom = (input: string, index: number, patterns: Pattern[], pat
       for (let i = startIdx; i >= q.n - 1; i--) {
         const match = Effect.runSync(matchFrom(input, matchEnds[i], patterns, patternIndex + 1));
         if (match !== null) {
-          return match;
+          return Effect.succeed(match);
         }
       }
-      return null;
+      return Effect.succeed(null);
     }),
     Match.orElse(() => {
-      throw new Error("Invalid quantifier");
+      return Effect.fail(new Error("Invalid quantifier"));
     }),
-  )(quantifier);
+  )(quantifier));
 })
