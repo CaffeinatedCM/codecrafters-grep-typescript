@@ -1,7 +1,8 @@
 import { describe, test, expect } from 'bun:test';
 import { program } from './main';
-import { Effect, Layer } from 'effect';
+import { Effect, Layer, Stream } from 'effect';
 import { Terminal } from '@effect/platform';
+import { InputStream } from './InputStream';
 
 const createMockTerminal = (lines: string[]) => {
     let displayOutput: string[] = [];
@@ -22,9 +23,14 @@ const createMockTerminal = (lines: string[]) => {
     }
 }
 
+const createMockInputStream = (lines: string[]) => {
+    return InputStream.of(Stream.fromIterable(lines));
+}
+
 const runTest = async (pattern: string, input: string, expectedOutput: string[], expectedExitCode?: number) => {
   const { terminal, displayOutput } = createMockTerminal([input]);
     const TestLayer = Layer.succeed(Terminal.Terminal, terminal);
+    const InputStreamLayer = Layer.succeed(InputStream, createMockInputStream(input.split('\n')));
 
     const resultEffect = Effect.matchEffect({
         onFailure(e) {
@@ -36,7 +42,7 @@ const runTest = async (pattern: string, input: string, expectedOutput: string[],
         onSuccess(a) {
             return Effect.succeed(a);
         },
-    })(program(['asdf', 'asdf', '-E', pattern]).pipe(Effect.provide(TestLayer)))
+    })(program(['asdf', 'asdf', '-E', pattern]).pipe(Effect.provide(TestLayer), Effect.provide(InputStreamLayer)))
 
     const result = await Effect.runPromise(resultEffect);
     
