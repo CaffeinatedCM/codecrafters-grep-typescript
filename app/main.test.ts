@@ -220,7 +220,7 @@ describe('Quantifiers', () => {
             ['a*', 'aaaa', ['aaaa\n']],
             ['a*', 'b', ['b\n']],
             // ['a*', '', ['match (0)\n']], // TODO: Check this
-            ['a*', 'ba', ['ba\n']], // TODO : Fix this, the wrong index is returned
+            ['a*', 'ba', ['ba\n']],
         ])('pattern "%s" matches zero or more in "%s"', async (pattern, input, expectedOutput) => {
             await runTest(pattern, input, expectedOutput);
         });
@@ -275,6 +275,7 @@ describe('Quantifiers', () => {
             ['a{1,2}', 'a', ['a\n']],
             ['a{1,2}', 'aa', ['aa\n']],
             ['a{1,2}', 'aaa', ['aaa\n']],
+            ['pep{2,4}eroni', 'peppperoni', ['peppperoni\n']],
         ])('pattern "%s" matches between n and m times in "%s"', async (pattern, input, expectedOutput) => {
             await runTest(pattern, input, expectedOutput);
         });
@@ -282,6 +283,7 @@ describe('Quantifiers', () => {
         test.each([
             ['a{2,3}', 'a', [], 1],
             ['a{2,3}', 'b', [], 1],
+            ['pep{2,4}eroni', 'peppppperoni', [], 1]
         ])('pattern "%s" requires at least n matches "%s"', async (pattern, input, expectedOutput, exitCode) => {
             await runTest(pattern, input, expectedOutput, exitCode);
         });
@@ -298,6 +300,8 @@ describe('Alternations and Groups', () => {
             ['(a|b|c)', 'c', ['c\n']],
             ['(hello|world)', 'hello', ['hello\n']],
             ['(hello|world)', 'world', ['world\n']],
+            ['(cat|dog)', 'cat', ['cat\n']],
+            ['cat|dog', 'dog', ['dog\n']],
         ])('pattern "%s" matches alternation in "%s"', async (pattern, input, expectedOutput) => {
             await runTest(pattern, input, expectedOutput);
         });
@@ -396,7 +400,7 @@ describe('Complex Patterns', () => {
         ['a*b', 'ab', ['ab\n']],
         ['a*b', 'aab', ['aab\n']],
         ['a?b', 'b', ['b\n']],
-        ['a?b', 'ab', ['ab\n']], // TODO : Fix this, the wrong index is returned
+        ['a?b', 'ab', ['ab\n']],
         ['\\d+', '123', ['123\n']],
         ['\\w+', 'hello', ['hello\n']],
         // ['[a-z]+', 'hello', ['hello\n']], // TODO: implement this

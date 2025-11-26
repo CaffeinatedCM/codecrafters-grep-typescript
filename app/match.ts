@@ -2,15 +2,15 @@ import { Effect, Match, String, Array } from "effect";
 import type { Pattern, Quantifier } from "./types";
 
 export const matchAtom = (pattern: Pattern, char: string) => Effect.gen(function* () {
-  if (char?.length !== 1) {
-    return false;
-  }
+  // if (char?.length !== 1) {
+  //   return false;
+  // }
 
   return yield* Match.type<Pattern>().pipe(
     Match.withReturnType<Effect.Effect<boolean, never, never>>(),
-    Match.tag("literal", (p) => {
-      return Effect.succeed(char === p.value);
-    }),
+    // Match.tag("literal", (p) => {
+    //   return Effect.succeed(char === p.value);
+    // }),
     Match.tag("digit", () => {
       return Effect.succeed(char >= "0" && char <= "9");
     }),
@@ -41,6 +41,15 @@ export const matchOneInstance = (input: string, index: number, pattern: Pattern)
       if (end !== null) {
         return end;
       }
+    }
+    return null;
+  } else if (pattern._tag === "capturing-group") {
+    const capturingGroupPatterns = pattern.patterns;
+    return yield* matchFrom(input, index, capturingGroupPatterns, 0);
+  } else if(pattern._tag === 'literal') {
+    const literalValue = pattern.value;
+    if (input.substring(index, index + literalValue.length) === literalValue) {
+      return index + literalValue.length;
     }
     return null;
   } else {
