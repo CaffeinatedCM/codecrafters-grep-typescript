@@ -31,14 +31,15 @@ const program = (args: string[]) => Effect.gen(function* () {
     for (let i = 0; i < inputLine.length; i++) {
       const isMatch = yield* matchFrom(inputLine, i, patterns, 0);
       if (isMatch !== null) {
+        foundMatch = true;
         if (oFlagIndex !== -1) {
           yield * terminal.display(`${inputLine.substring(i, isMatch)}\n`)
         }
         else {
           yield * terminal.display(`${inputLine}\n`)
+          return yield * Effect.succeed(0);
         }
-        foundMatch = true;
-        return yield * Effect.succeed(0);
+        //return yield * Effect.succeed(0);
       }
     }
   })
