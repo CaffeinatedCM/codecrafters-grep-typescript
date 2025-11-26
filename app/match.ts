@@ -111,7 +111,7 @@ export const matchFrom = (input: string, index: number, patterns: Pattern[], pat
     Match.tag("zero-or-one", () => {
       const match1 = Effect.runSync(matchFrom(input, index + 1, patterns, patternIndex + 1));
       if (matchEnds.length >0 && match1) {
-        return Effect.succeed(index + 1);
+        return Effect.succeed(match1);
       }
       return matchFrom(input, index, patterns, patternIndex + 1);
     }),

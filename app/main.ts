@@ -9,15 +9,21 @@ const program = (args: string[]) => Effect.gen(function* () {
  const terminal = yield* Terminal.Terminal;
  const inputStream = yield* InputStream;
 
- if (args[2] !== "-E") {
+ // find the -E flag 
+ let eFlagIndex = args.indexOf("-E");
+ if (eFlagIndex === -1) {
   yield * terminal.display("Expected first argument to be '-E'\n");
-  return yield * Effect.fail(1);
+  return yield * Effect.die(1);
+ }
+ const pattern = args[eFlagIndex + 1];
+ if (!pattern) {
+  yield * terminal.display("Expected pattern after '-E'\n");
+  return yield * Effect.die(1);
  }
 
- const pattern = args[3];
- const patterns = yield* parsePattern(pattern);
+ let oFlagIndex = args.indexOf("-o");
 
-//  const inputLines = yield* Stream.runCollect(inputStream)
+ const patterns = yield* parsePattern(pattern);
 
  let foundMatch = false;
  yield* Stream.runForEach((inputLine: string) => {
@@ -25,7 +31,12 @@ const program = (args: string[]) => Effect.gen(function* () {
     for (let i = 0; i < inputLine.length; i++) {
       const isMatch = yield* matchFrom(inputLine, i, patterns, 0);
       if (isMatch !== null) {
-        yield * terminal.display(`${inputLine}\n`)
+        if (oFlagIndex !== -1) {
+          yield * terminal.display(`${inputLine.substring(i, isMatch)}\n`)
+        }
+        else {
+          yield * terminal.display(`${inputLine}\n`)
+        }
         foundMatch = true;
         return yield * Effect.succeed(0);
       }
