@@ -1,4 +1,4 @@
-import { Effect, Match, String } from "effect";
+import { Effect, Match, String, Array } from "effect";
 import type { Pattern, Quantifier } from "./types";
 
 export const matchAtom = (pattern: Pattern, char: string) => Effect.gen(function* () {
@@ -100,33 +100,26 @@ export const matchFrom = (input: string, index: number, patterns: Pattern[], pat
         return Effect.succeed(null);
       }
 
-      for (let i = matchEnds.length - 1; i >= 0; i--) {
-        const match = Effect.runSync(matchFrom(input, matchEnds[i], patterns, patternIndex + 1));
-        if (match !== null) {
-          return Effect.succeed(match);
-        }
-      }
-      return Effect.succeed(null);
+      return Effect.reduceWhile<number | null, number, Error, never>(null, {
+        while: (acc) => acc === null,
+        body: (_, matchEnd) => matchFrom(input, matchEnd, patterns, patternIndex + 1),
+      })(matchEnds.toReversed())
     }),
     Match.tag("zero-or-one", () => {
-      const match1 = Effect.runSync(matchFrom(input, index + 1, patterns, patternIndex + 1));
-      if (matchEnds.length >0 && match1) {
-        return Effect.succeed(match1);
-      }
-      return matchFrom(input, index, patterns, patternIndex + 1);
+      return Effect.filterEffectOrElse<number | null, Error, never, number | null, Error, never>({
+        predicate: (match1) => Effect.succeed(matchEnds.length > 0 && match1 !== null),
+        orElse: () => matchFrom(input, index, patterns, patternIndex + 1),
+      })(matchFrom(input, index + 1, patterns, patternIndex + 1))
     }),
     Match.tag("zero-or-more", () => {
       if (matchEnds.length === 0) {
         return matchFrom(input, index, patterns, patternIndex + 1);
       }
 
-      for (let i = matchEnds.length - 1; i >= 0; i--) {
-        const match = Effect.runSync(matchFrom(input, matchEnds[i], patterns, patternIndex + 1));
-        if (match) {
-          return Effect.succeed(match);
-        }
-      }
-      return Effect.succeed(null);
+      return Effect.reduceWhile<number | null, number, Error, never>(null, {
+        while: (acc) => acc === null,
+        body: (_, matchEnd) => matchFrom(input, matchEnd, patterns, patternIndex + 1),
+      })(matchEnds.toReversed())
     }),
     Match.tag("n-times", (q) => {
       if (matchEnds.length < q.n) {
@@ -140,14 +133,10 @@ export const matchFrom = (input: string, index: number, patterns: Pattern[], pat
       if (matchEnds.length < q.n) {
         return Effect.succeed(null);
       }
-
-      for (let i = matchEnds.length - 1; i >= q.n - 1; i--) {
-        const match = Effect.runSync(matchFrom(input, matchEnds[i], patterns, patternIndex + 1));
-        if (match !== null) {
-          return Effect.succeed(match);
-        }
-      }
-      return Effect.succeed(null);
+      return Effect.reduceWhile<number | null, number, Error, never>(null, {
+        while: (acc) => acc === null,
+        body: (_, matchEnd) => matchFrom(input, matchEnd, patterns, patternIndex + 1),
+      })(matchEnds.slice(q.n -1).toReversed())
     }),
     Match.tag("between-n-and-m-times", (q) => {
       if (matchEnds.length < q.n) {
@@ -155,14 +144,11 @@ export const matchFrom = (input: string, index: number, patterns: Pattern[], pat
       }
 
       // start at the end of the m-th match and go until the end of the n-th match
-      let startIdx = matchEnds.length < q.m ? matchEnds.length - 1 : q.m - 1;
-      for (let i = startIdx; i >= q.n - 1; i--) {
-        const match = Effect.runSync(matchFrom(input, matchEnds[i], patterns, patternIndex + 1));
-        if (match !== null) {
-          return Effect.succeed(match);
-        }
-      }
-      return Effect.succeed(null);
+      let startIdx = matchEnds.length < q.m ? matchEnds.length : q.m;
+      return Effect.reduceWhile<number | null, number, Error, never>(null, {
+        while: (acc) => acc === null,
+        body: (_, matchEnd) => matchFrom(input, matchEnd, patterns, patternIndex + 1),
+      })(matchEnds.slice(q.n -1, startIdx).toReversed()) 
     }),
     Match.orElse(() => {
       return Effect.fail(new Error("Invalid quantifier"));

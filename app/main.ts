@@ -34,6 +34,7 @@ const program = (args: string[]) => Effect.gen(function* () {
         foundMatch = true;
         if (oFlagIndex !== -1) {
           yield * terminal.display(`${inputLine.substring(i, isMatch)}\n`)
+          i = isMatch - 1;
         }
         else {
           yield * terminal.display(`${inputLine}\n`)
