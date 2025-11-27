@@ -45,7 +45,7 @@ export const matchOneInstance = (input: string, index: number, pattern: Pattern,
     return null;
   } else if (pattern._tag === "capturing-group") {
     const capturingGroupPatterns = pattern.patterns;
-    const end = yield* matchFrom(input, index, capturingGroupPatterns, 0);
+    const end = yield* matchFrom(input, index, capturingGroupPatterns, 0, backreferences);
     if (end === null) { return null;}
     backreferences[pattern.index.toString()] = input.substring(index, end);
     return end;

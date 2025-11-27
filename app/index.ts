@@ -7,5 +7,5 @@ import { program } from './main';
 BunRuntime.runMain(program(process.argv).pipe(
     Effect.provide(BunContext.layer), 
     Effect.provideService(InputStream, BunInputStream)
-), { disableErrorReporting: true });
-// ))
+// ), { disableErrorReporting: true });
+))

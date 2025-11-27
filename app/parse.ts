@@ -76,7 +76,19 @@ const parse = (pattern: string, { backreferences, backreferenceIndex }: { backre
   
   while (index < patternChars.length) {
     if (patternChars[index] === "(") {
-      const innerContent = takeWhile(patternChars.slice(index + 1), (char) => char !== ")").join("");
+      let depth = 1;
+      let innerContent = "";
+      for (let i = index + 1; i < patternChars.length; i++) {
+        if (patternChars[i] === "(") {
+          depth++;
+        } else if (patternChars[i] === ")") {
+          depth--;
+        }
+        if (depth === 0) {
+          innerContent = patternChars.slice(index + 1, i).join("");
+          break;
+        }
+      }
       const newBackreferenceIndex = backreferenceIndex;
       const innerPatterns = yield * parse(innerContent, { backreferences, backreferenceIndex: newBackreferenceIndex + 1 });
       patterns.push({ _tag: "capturing-group", index: newBackreferenceIndex, patterns: innerPatterns.patterns });
