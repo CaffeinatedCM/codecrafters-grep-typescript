@@ -120,6 +120,11 @@ const parse = (pattern: string, { backreferences, backreferenceIndex }: { backre
       } else if (nextChar === "w") {
         patterns.push({ _tag: "word" });
         index += 2;
+      } else if (nextChar >= "0" && nextChar <= "9") {
+        const rawIndex = takeWhile(patternChars.slice(index + 1), (char) => char >= "0" && char <= "9").join("");
+        const backreferenceIndex = Number.parseInt(rawIndex);
+        patterns.push({ _tag: "backreference", index: backreferenceIndex });
+        index += rawIndex.length + 1;
       } else {
         return yield * Effect.die("Invalid escape sequence");
       }

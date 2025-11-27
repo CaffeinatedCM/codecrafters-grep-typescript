@@ -15,4 +15,5 @@ export type Pattern =
   | { readonly _tag: "wildcard"; quantifier?: Quantifier }
   | { readonly _tag :"alternation"; readonly patterns: Pattern[][], quantifier?: Quantifier }
   | { readonly _tag: "capturing-group"; readonly index: number; readonly patterns: Pattern[]; quantifier?: Quantifier }
+  | { readonly _tag: "backreference"; readonly index: number, quantifier?: Quantifier }
   | { readonly _tag: "end"; }

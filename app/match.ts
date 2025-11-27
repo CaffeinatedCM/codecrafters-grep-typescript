@@ -34,7 +34,7 @@ export const matchAtom = (pattern: Pattern, char: string) => Effect.gen(function
   )(pattern);
 });
 
-export const matchOneInstance = (input: string, index: number, pattern: Pattern): Effect.Effect<number | null, Error> => Effect.gen(function* () {
+export const matchOneInstance = (input: string, index: number, pattern: Pattern, backreferences: Record<string, string> = {}): Effect.Effect<number | null, Error> => Effect.gen(function* () {
   if (pattern._tag === "alternation") {
     for (const alternate of pattern.patterns) {
       const end = yield* matchFrom(input, index, alternate, 0);
@@ -45,11 +45,24 @@ export const matchOneInstance = (input: string, index: number, pattern: Pattern)
     return null;
   } else if (pattern._tag === "capturing-group") {
     const capturingGroupPatterns = pattern.patterns;
-    return yield* matchFrom(input, index, capturingGroupPatterns, 0);
+    const end = yield* matchFrom(input, index, capturingGroupPatterns, 0);
+    if (end === null) { return null;}
+    backreferences[pattern.index.toString()] = input.substring(index, end);
+    return end;
   } else if(pattern._tag === 'literal') {
     const literalValue = pattern.value;
     if (input.substring(index, index + literalValue.length) === literalValue) {
       return index + literalValue.length;
+    }
+    return null;
+  } else if (pattern._tag === "backreference") {
+    const backreferenceIndex = pattern.index;
+    const backreference = backreferences[backreferenceIndex.toString()];
+    if (!backreference) {
+      return null;
+    }
+    if (input.substring(index, index + backreference.length) === backreference) {
+      return index + backreference.length;
     }
     return null;
   } else {
@@ -61,9 +74,8 @@ export const matchOneInstance = (input: string, index: number, pattern: Pattern)
   }
 })
 
-export const matchFrom = (input: string, index: number, patterns: Pattern[], patternIndex: number): Effect.Effect<number | null, Error> => Effect.gen(function* () {
-  if (patternIndex >= patterns.length) {
-    return index;
+export const matchFrom = (input: string, index: number, patterns: Pattern[], patternIndex: number, backreferences: Record<string, string> = {}): Effect.Effect<number | null, Error> => Effect.gen(function* () {
+  if (patternIndex >= patterns.length) {    return index;
   }
 
   const pattern = patterns[patternIndex];
@@ -72,13 +84,13 @@ export const matchFrom = (input: string, index: number, patterns: Pattern[], pat
     if (index !== 0) {
       return null;
     }
-    return yield* matchFrom(input, index, patterns, patternIndex + 1);
+    return yield* matchFrom(input, index, patterns, patternIndex + 1, backreferences);
   }
   if (pattern._tag === "end") {
     if (index !== input.length) {
       return null;
     }
-    return yield* matchFrom(input, index, patterns, patternIndex + 1);
+    return yield* matchFrom(input, index, patterns, patternIndex + 1, backreferences);
   }
 
   const quantifier = pattern.quantifier;
@@ -87,19 +99,19 @@ export const matchFrom = (input: string, index: number, patterns: Pattern[], pat
     if (index >= input.length) {
       return null;
     }
-    const match = yield* matchOneInstance(input, index, pattern);
+    const match = yield* matchOneInstance(input, index, pattern, backreferences);
     if (match === null) {
       return null;
     }
-    const rest = yield* matchFrom(input, match, patterns, patternIndex + 1);
+    const rest = yield* matchFrom(input, match, patterns, patternIndex + 1, backreferences);
     return rest === null ? null : rest;
   }
 
-  let match = yield* matchOneInstance(input, index, pattern);
+  let match = yield* matchOneInstance(input, index, pattern, backreferences);
   const matchEnds: number[] = [];
   while (match !== null && match <= input.length) {
     matchEnds.push(match);
-    match = yield* matchOneInstance(input, match, pattern);
+    match = yield* matchOneInstance(input, match, pattern, backreferences);
   }
 
   return yield* (Match.type<Quantifier>().pipe(
@@ -111,23 +123,23 @@ export const matchFrom = (input: string, index: number, patterns: Pattern[], pat
 
       return Effect.reduceWhile<number | null, number, Error, never>(null, {
         while: (acc) => acc === null,
-        body: (_, matchEnd) => matchFrom(input, matchEnd, patterns, patternIndex + 1),
+        body: (_, matchEnd) => matchFrom(input, matchEnd, patterns, patternIndex + 1, backreferences),
       })(matchEnds.toReversed())
     }),
     Match.tag("zero-or-one", () => {
       return Effect.filterEffectOrElse<number | null, Error, never, number | null, Error, never>({
         predicate: (match1) => Effect.succeed(matchEnds.length > 0 && match1 !== null),
-        orElse: () => matchFrom(input, index, patterns, patternIndex + 1),
-      })(matchFrom(input, index + 1, patterns, patternIndex + 1))
+        orElse: () => matchFrom(input, index, patterns, patternIndex + 1, backreferences),
+      })(matchFrom(input, index + 1, patterns, patternIndex + 1, backreferences))
     }),
     Match.tag("zero-or-more", () => {
       if (matchEnds.length === 0) {
-        return matchFrom(input, index, patterns, patternIndex + 1);
+        return matchFrom(input, index, patterns, patternIndex + 1, backreferences);
       }
 
       return Effect.reduceWhile<number | null, number, Error, never>(null, {
         while: (acc) => acc === null,
-        body: (_, matchEnd) => matchFrom(input, matchEnd, patterns, patternIndex + 1),
+        body: (_, matchEnd) => matchFrom(input, matchEnd, patterns, patternIndex + 1, backreferences),
       })(matchEnds.toReversed())
     }),
     Match.tag("n-times", (q) => {
@@ -136,7 +148,7 @@ export const matchFrom = (input: string, index: number, patterns: Pattern[], pat
       }
 
       // Start at the end of the n-th match
-      return matchFrom(input, matchEnds[q.n - 1], patterns, patternIndex + 1);
+      return matchFrom(input, matchEnds[q.n - 1], patterns, patternIndex + 1, backreferences);
     }),
     Match.tag("at-least-n-times", (q) => {
       if (matchEnds.length < q.n) {
@@ -144,7 +156,7 @@ export const matchFrom = (input: string, index: number, patterns: Pattern[], pat
       }
       return Effect.reduceWhile<number | null, number, Error, never>(null, {
         while: (acc) => acc === null,
-        body: (_, matchEnd) => matchFrom(input, matchEnd, patterns, patternIndex + 1),
+        body: (_, matchEnd) => matchFrom(input, matchEnd, patterns, patternIndex + 1, backreferences),
       })(matchEnds.slice(q.n -1).toReversed())
     }),
     Match.tag("between-n-and-m-times", (q) => {
@@ -156,7 +168,7 @@ export const matchFrom = (input: string, index: number, patterns: Pattern[], pat
       let startIdx = matchEnds.length < q.m ? matchEnds.length : q.m;
       return Effect.reduceWhile<number | null, number, Error, never>(null, {
         while: (acc) => acc === null,
-        body: (_, matchEnd) => matchFrom(input, matchEnd, patterns, patternIndex + 1),
+        body: (_, matchEnd) => matchFrom(input, matchEnd, patterns, patternIndex + 1, backreferences),
       })(matchEnds.slice(q.n -1, startIdx).toReversed()) 
     }),
     Match.orElse(() => {
