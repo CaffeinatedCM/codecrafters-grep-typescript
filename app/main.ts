@@ -23,6 +23,19 @@ const program = (args: string[]) => Effect.gen(function* () {
 
  let oFlagIndex = args.indexOf("-o");
 
+ // if the last argument is a file, read the file
+ // (just txt for now)
+ let fileStream = null;
+ if (args[args.length - 1].endsWith(".txt")) {
+  const file = Bun.file(args[args.length - 1]);
+  fileStream = Stream.fromReadableStream(() => file.stream(), (e) => {
+    console.error(e);
+    console.log(e)
+    return Effect.die(e);
+  }).pipe(Stream.decodeText('utf-8'), Stream.splitLines)
+ }
+
+ let targetStream = fileStream ?? inputStream;
  const patterns = yield* parsePattern(pattern);
 
  let foundMatch = false;
@@ -44,7 +57,7 @@ const program = (args: string[]) => Effect.gen(function* () {
       }
     }
   })
- })(inputStream)
+ })(targetStream)
 
   if (!foundMatch) {
     return yield * Effect.fail(1);
