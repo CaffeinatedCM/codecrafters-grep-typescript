@@ -89,11 +89,11 @@ const parse = (pattern: string, { backreferences, backreferenceIndex }: { backre
           break;
         }
       }
-      const newBackreferenceIndex = backreferenceIndex;
-      const innerPatterns = yield * parse(innerContent, { backreferences, backreferenceIndex: newBackreferenceIndex + 1 });
-      patterns.push({ _tag: "capturing-group", index: newBackreferenceIndex, patterns: innerPatterns.patterns });
-      backreferences[newBackreferenceIndex.toString()] = patterns[patterns.length - 1];
-      backreferenceIndex++;
+      const newBackreferenceIndex = backreferenceIndex + 1;
+      const innerPatterns = yield * parse(innerContent, { backreferences, backreferenceIndex: newBackreferenceIndex });
+      patterns.push({ _tag: "capturing-group", index: backreferenceIndex, patterns: innerPatterns.patterns });
+      backreferences[backreferenceIndex.toString()] = patterns[patterns.length - 1];
+      backreferenceIndex = innerPatterns.backreferenceIndex;
       index += innerContent.length + 2;
     }
     else if (patternChars[index] === "$") {

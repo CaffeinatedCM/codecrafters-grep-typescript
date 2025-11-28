@@ -43,12 +43,6 @@ export const matchOneInstance = (input: string, index: number, pattern: Pattern,
       }
     }
     return null;
-  } else if (pattern._tag === "capturing-group") {
-    const capturingGroupPatterns = pattern.patterns;
-    const end = yield* matchFrom(input, index, capturingGroupPatterns, 0, backreferences);
-    if (end === null) { return null;}
-    backreferences[pattern.index.toString()] = input.substring(index, end);
-    return end;
   } else if(pattern._tag === 'literal') {
     const literalValue = pattern.value;
     if (input.substring(index, index + literalValue.length) === literalValue) {
@@ -75,7 +69,8 @@ export const matchOneInstance = (input: string, index: number, pattern: Pattern,
 })
 
 export const matchFrom = (input: string, index: number, patterns: Pattern[], patternIndex: number, backreferences: Record<string, string> = {}): Effect.Effect<number | null, Error> => Effect.gen(function* () {
-  if (patternIndex >= patterns.length) {    return index;
+  if (patternIndex >= patterns.length) {   
+     return index;
   }
 
   const pattern = patterns[patternIndex];
@@ -91,6 +86,31 @@ export const matchFrom = (input: string, index: number, patterns: Pattern[], pat
       return null;
     }
     return yield* matchFrom(input, index, patterns, patternIndex + 1, backreferences);
+  }
+
+  if (pattern._tag === "capturing-group") {
+    const capturingGroupPatterns = pattern.patterns;
+    const end = yield* matchFrom(input, index, capturingGroupPatterns, 0, backreferences);
+    if (end === null) { return null;}
+    backreferences[pattern.index.toString()] = input.substring(index, end);
+
+    let endIndex = end;
+    let restMatch = yield * matchFrom(input, end, patterns, patternIndex + 1, backreferences);
+    while (restMatch === null && endIndex >= index -1) {
+      let newEnd = yield * matchFrom(input.substring(0, endIndex), index, capturingGroupPatterns, 0, backreferences);
+      if (newEnd === null) {
+        return null;
+      }
+      backreferences[pattern.index.toString()] = input.substring(index, newEnd + 1);
+      restMatch = yield * matchFrom(input, newEnd, patterns, patternIndex + 1, backreferences);
+      endIndex--;
+    }
+
+    if (restMatch !== null) {
+      return restMatch;
+    }
+
+    return null;
   }
 
   const quantifier = pattern.quantifier;
