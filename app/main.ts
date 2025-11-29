@@ -1,10 +1,9 @@
-import { Effect, Stream, Option } from 'effect';
+import { Effect, Stream } from 'effect';
 import { Terminal } from '@effect/platform';
-import { BunStream } from '@effect/platform-bun'
 import { parsePattern } from './parse';
 import { matchFrom } from './match';
 import { InputStream } from './InputStream';
-import { filter } from 'effect/Array';
+import { Glob } from 'bun';
 import type { Pattern } from './types';
 
 type MatchLineOptions = {
@@ -26,7 +25,7 @@ const matchLine = (inputLine: string, patterns: Pattern[], options: MatchLineOpt
       }
       else {
         yield* terminal.display(`${options.prefix}${inputLine}\n`)
-        return yield* Effect.succeed(0);
+        return yield* Effect.succeed(true);
       }
     }
   }
@@ -47,7 +46,7 @@ const matchFile = (fileName: string, patterns: Pattern[], options: MatchFileOpti
   let foundMatch = false;
   yield* Stream.runForEach((inputLine: string) => {
     return Effect.gen(function* () {
-      const isMatch = yield* matchLine(inputLine, patterns, { output: true, prefix: options.showFileName ? `${fileName}:` : "" });
+      const isMatch = yield* matchLine(inputLine, patterns, { output: options.output, prefix: options.showFileName ? `${fileName}:` : "" });
       if (isMatch) {
         foundMatch = true;
       }
@@ -60,6 +59,8 @@ const program = (args: string[]) => Effect.gen(function* () {
   const terminal = yield* Terminal.Terminal;
   const inputStream = yield* InputStream;
 
+  let globalFoundMatch = false;
+
   // find the -E flag 
   let eFlagIndex = args.indexOf("-E");
   if (eFlagIndex === -1) {
@@ -71,10 +72,29 @@ const program = (args: string[]) => Effect.gen(function* () {
     yield* terminal.display("Expected pattern after '-E'\n");
     return yield* Effect.die(1);
   }
+  const patterns = yield* parsePattern(pattern);
 
   let oFlagIndex = args.indexOf("-o");
-  const patterns = yield* parsePattern(pattern);
-  let globalFoundMatch = false;
+  
+  const rFlagIndex = args.indexOf("-r");
+  if (rFlagIndex !== -1) {
+    const directories = args.filter((arg) => arg.endsWith("/"));
+    for (const directory of directories) {
+      const glob = new Glob(`${directory}**/*.txt`);
+      for (const file of glob.scanSync()) {
+        const foundMatch = yield* matchFile(file, patterns, { output: oFlagIndex !== -1, showFileName: true });
+        if (foundMatch) {
+          globalFoundMatch = true;
+        }
+      }
+    }
+
+    if (!globalFoundMatch) {
+      return yield* Effect.fail(1);
+    }
+
+    return yield* Effect.succeed(0);
+  }
 
   // if the last argument is a file, read the file
   // (just txt for now)
